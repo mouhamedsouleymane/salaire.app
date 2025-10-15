@@ -20,6 +20,7 @@
             @endif
         </strong>
 
+        ///{{ Hash::make('98812255') }}
         <form method="post" action="{{ route('handleLogin') }}">
             @csrf
             @method('POST')

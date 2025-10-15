@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        expose:
+            - "80"
+        depends_on:
+            - db
+        environment:
+            - APP_ENV=production
+            - APP_KEY=${APP_KEY}
+            - APP_DEBUG=false
+            - DB_CONNECTION=mysql
+            - DB_HOST=db
+            - DB_PORT=3306
+            - DB_DATABASE=salaire
+            - DB_USERNAME=root
+            - DB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+            - CACHE_DRIVER=file
+            - QUEUE_CONNECTION=sync
+            - SESSION_DRIVER=file
+            - LOG_CHANNEL=stack
+            - LOG_LEVEL=error
+        networks:
+            - salaire
+        restart: unless-stopped
+
+    nginx:
+        image: nginx:alpine
+        ports:
+            - "${PORT:-8000}:80"
+        volumes:
+            - ./nginx.conf:/etc/nginx/conf.d/default.conf
+        depends_on:
+            - app
+        networks:
+            - salaire
+        restart: unless-stopped
+
+    db:
+        image: mysql:8.0
+        environment:
+            MYSQL_DATABASE: salaire
+            MYSQL_USER: root
+            MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        volumes:
+            - db_data:/var/lib/mysql
+        networks:
+            - salaire
+        restart: unless-stopped
+
+volumes:
+    db_data:
+
+networks:
+    salaire:
+        driver: bridge
