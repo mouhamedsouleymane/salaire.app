@@ -94,4 +94,38 @@ class EmployerController extends Controller
                 ->with('error', 'Erreur lors de la suppression : ' . $e->getMessage());
         }
     }
+
+    // API Methods
+    public function apiIndex()
+    {
+        try {
+            $employers = Employer::with('departement')->paginate(15);
+            return response()->json([
+                'success' => true,
+                'data' => $employers,
+                'message' => 'Liste des employés récupérée avec succès'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des employés: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function apiShow(Employer $employer)
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => $employer->load('departement'),
+                'message' => 'Employé récupéré avec succès'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de l\'employé: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

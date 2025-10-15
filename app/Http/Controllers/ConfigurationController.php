@@ -46,4 +46,38 @@ class ConfigurationController extends Controller
         $configuration->delete();
         return redirect()->route('configurations')->with('success_message', 'Configuration supprimée');
     }
+
+    // API Methods
+    public function apiIndex()
+    {
+        try {
+            $configurations = Configuration::latest()->paginate(15);
+            return response()->json([
+                'success' => true,
+                'data' => $configurations,
+                'message' => 'Liste des configurations récupérée avec succès'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des configurations: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function apiShow(Configuration $configuration)
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => $configuration,
+                'message' => 'Configuration récupérée avec succès'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération de la configuration: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

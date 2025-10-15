@@ -69,4 +69,38 @@ class DepartementController extends Controller
     }
 }
 
+    // API Methods
+    public function apiIndex()
+    {
+        try {
+            $departements = Departement::paginate(15);
+            return response()->json([
+                'success' => true,
+                'data' => $departements,
+                'message' => 'Liste des départements récupérée avec succès'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération des départements: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function apiShow(Departement $departement)
+    {
+        try {
+            return response()->json([
+                'success' => true,
+                'data' => $departement,
+                'message' => 'Département récupéré avec succès'
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors de la récupération du département: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 }
