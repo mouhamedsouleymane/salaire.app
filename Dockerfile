@@ -1,71 +1,59 @@
-# ======================================================
-# Étape 1 : Build du frontend (Vite, Tailwind, etc.)
-# ======================================================
+# Étape 1 : Build du frontend avec Vite
 FROM node:18 AS frontend
 
 WORKDIR /app
 
-# Copie des dépendances front
-COPY package*.json ./
-RUN npm ci --include=dev
+# Copie des fichiers nécessaires à l'installation
+COPY package*.json vite.config.* postcss.config.* tailwind.config.* ./
 
-# Copie du code frontend
+# Installation complète (inclut les devDependencies pour Vite)
+RUN npm ci
+
+# Copie du reste du frontend
 COPY resources/ ./resources/
 COPY public/ ./public/
 
-# Build de la version de production
+# Build des assets frontend
 RUN npm run build
 
+# Étape 2 : Installation de Composer
+FROM composer:latest AS vendor
 
-# ======================================================
-# Étape 2 : Build de l'application PHP/Laravel
-# ======================================================
+WORKDIR /var/www/html
+
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# Étape 3 : Image PHP finale
 FROM php:8.2-fpm
 
-# Installation des dépendances système
 RUN apt-get update && apt-get install -y \
-    git curl zip unzip libpng-dev libjpeg-dev libfreetype6-dev libonig-dev libxml2-dev \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    git curl libpng-dev libonig-dev libxml2-dev zip unzip \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copie de Composer depuis l’image officielle
+# Copie de Composer depuis l'image précédente
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Définition du dossier de travail
 WORKDIR /var/www/html
 
-# Copie de tout le projet Laravel
-COPY . ./
+# Copie du code source Laravel
+COPY . .
 
-# Copie des assets frontend buildés depuis le stage précédent
+# Copie des dépendances PHP
+COPY --from=vendor /var/www/html/vendor ./vendor
+
+# Copie des assets buildés par Vite
 COPY --from=frontend /app/public/build ./public/build
 
-# Installation des dépendances PHP
-RUN composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+# Permissions Laravel
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 storage \
+    && chmod -R 755 bootstrap/cache
 
-# Optimisation de Laravel (cache config, routes, vues)
-RUN php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache
+EXPOSE 9000
 
-# Fix des permissions
-RUN mkdir -p storage bootstrap/cache \
-    && chown -R www-data:www-data /var/www/html \
-    && chmod -R 775 storage bootstrap/cache
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD php -v || exit 1
 
-# ======================================================
-# Étape 3 : Nginx pour exposer Laravel sur le port 8080
-# ======================================================
-FROM nginx:alpine
-
-# Copie de la config Nginx personnalisée
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
-
-# Copie du code Laravel depuis le conteneur PHP
-COPY --from=0 /var/www/html /var/www/html
-
-# Exposition du port attendu par Railway
-EXPOSE 8080
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["php-fpm"]
