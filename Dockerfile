@@ -1,34 +1,41 @@
 # -------------------------------
-# Étape 1 : Builder frontend avec Node
-# -------------------------------
-FROM node:18 AS frontend-builder
-WORKDIR /app
-
-# Copier uniquement les fichiers nécessaires à npm ci pour utiliser le cache
-COPY package*.json vite.config.* postcss.config.* tailwind.config.* ./
-RUN npm ci
-
-# Copier le reste des assets frontend et builder
-COPY resources/ ./resources/
-COPY public/ ./public/
-RUN npm run build
-
-# -------------------------------
-# Étape 2 : Installer les dépendances PHP avec Composer
+# Étape 1 : Builder PHP + Composer
 # -------------------------------
 FROM composer:latest AS composer-builder
+
 WORKDIR /var/www/html
 
-# Copier juste composer.json et composer.lock pour cache
-COPY composer.json composer.lock ./
+# Copier tout le code Laravel pour que composer et artisan puissent fonctionner
+COPY . .
+
+# Installer les dépendances PHP
 RUN composer install --no-dev --optimize-autoloader --no-interaction
+
+# -------------------------------
+# Étape 2 : Builder Frontend (Node + Vite)
+# -------------------------------
+FROM node:18 AS node-builder
+
+WORKDIR /app
+
+# Copier les fichiers nécessaires pour npm install
+COPY package*.json ./
+RUN npm install
+
+# Copier le reste du code frontend (ressources, etc.)
+COPY resources/ ./resources/
+COPY vite.config.js ./
+COPY tailwind.config.js ./
+
+# Builder le frontend
+RUN npm run build
 
 # -------------------------------
 # Étape 3 : Image PHP finale
 # -------------------------------
 FROM php:8.2-fpm
 
-# Installer les extensions PHP nécessaires
+# Installer les extensions nécessaires
 RUN apt-get update && apt-get install -y \
     git curl libpng-dev libonig-dev libxml2-dev zip unzip \
     && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd \
@@ -36,19 +43,18 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /var/www/html
 
-# Copier le code Laravel complet
-COPY . .
+# Copier le code Laravel et les dépendances depuis composer-builder
+COPY --from=composer-builder /var/www/html /var/www/html
 
-# Copier les vendor depuis l'étape Composer
-COPY --from=composer-builder /var/www/html/vendor ./vendor
+# Copier le build frontend depuis node-builder
+COPY --from=node-builder /app/dist /var/www/html/public/build
 
-# Copier les assets buildés depuis l'étape frontend
-COPY --from=frontend-builder /app/public/build ./public/build
-
-# Permissions Laravel
+# Définir les permissions correctes
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 storage \
-    && chmod -R 755 bootstrap/cache
+    && chmod -R 755 /var/www/html
 
+# Exposer le port PHP-FPM
 EXPOSE 9000
+
+# Commande par défaut
 CMD ["php-fpm"]
