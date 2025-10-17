@@ -1,60 +1,69 @@
-# Multi-stage build for production optimization
+# ============================
+# 🧩 Étape 1 : Build frontend
+# ============================
 FROM node:18 AS frontend
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
+# Installation des dépendances frontend
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --only=production
 
-COPY resources/ ./resources/
-COPY public/ ./public/
+# Copie des sources frontend et build
+COPY frontend/resources/ ./resources/
+COPY frontend/public/ ./public/
 RUN npm run build
 
-FROM php:8.2-fpm
+# ============================
+# 🧩 Étape 2 : Composer install
+# ============================
+FROM composer:latest AS vendor
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    curl \
-    libpng-dev \
-    libonig-dev \
-    libxml2-dev \
-    zip \
-    unzip \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Install PHP extensions
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
-
-# Get latest Composer
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-
-# Set working directory
 WORKDIR /var/www/html
 
-# Copy composer files
-COPY composer.json composer.lock ./
-
-# Install PHP dependencies (production only)
+# Installation des dépendances PHP
+COPY backend/composer.json backend/composer.lock ./
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Copy application code
-COPY . .
+# ============================
+# 🧩 Étape 3 : Image finale PHP
+# ============================
+FROM php:8.2-fpm
 
-# Copy built assets from frontend stage
+# 📦 Installation des dépendances système
+RUN apt-get update && apt-get install -y \
+    git curl libpng-dev libonig-dev libxml2-dev zip unzip \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# 🔌 Extensions PHP nécessaires
+RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+
+# 📥 Composer depuis l'image vendor
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# 📁 Répertoire de travail
+WORKDIR /var/www/html
+
+# 📦 Copie du code backend
+COPY backend/ ./
+
+# 📦 Copie des dépendances PHP
+COPY --from=vendor /var/www/html/vendor ./vendor
+
+# 📦 Copie des assets frontend buildés
 COPY --from=frontend /app/public/build ./public/build
 
-# Set permissions
+# 🔐 Permissions
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage \
-    && chmod -R 755 /var/www/html/bootstrap/cache
+    && chmod -R 755 storage \
+    && chmod -R 755 bootstrap/cache
 
-# Expose port 9000 for PHP-FPM
+# 🌐 Exposition du port PHP-FPM
 EXPOSE 9000
 
-# Health check
+# 🩺 Healthcheck
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD php -v || exit 1
 
-# Start PHP-FPM
+# 🚀 Démarrage
 CMD ["php-fpm"]
