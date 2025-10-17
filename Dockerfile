@@ -25,7 +25,6 @@ RUN npm install
 # Copier le reste du code frontend (ressources, etc.)
 COPY resources/ ./resources/
 COPY vite.config.js ./
-COPY tailwind.config.js ./
 
 # Builder le frontend
 RUN npm run build
