@@ -10,11 +10,6 @@ COPY --from=composer:2.7 /usr/bin/composer /usr/bin/composer
 WORKDIR /var/www/html
 COPY . .
 
-RUN composer install
-
-RUN php artisan config:cache && php artisan route:cache && php artisan view:cache
-
-RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage bootstrap/cache
 
 # Étape 2 : Image finale
 FROM php:8.3-fpm
