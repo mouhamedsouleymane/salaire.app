@@ -37,4 +37,4 @@ RUN chown -R www-data:www-data storage bootstrap/cache && chmod -R 775 storage b
 
 
 # Lancer Laravel sur le port fourni par Railway
-CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000
+CMD php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
