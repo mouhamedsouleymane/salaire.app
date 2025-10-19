@@ -13,16 +13,16 @@ WORKDIR /var/www/html
 COPY . .
 
 RUN composer install --no-dev --optimize-autoloader --no-interaction
-RUN php artisan config:cache \
- && php artisan route:cache 
+RUN php artisan config:cache && php artisan route:cache
 
 RUN chown -R www-data:www-data storage bootstrap/cache \
  && chmod -R 775 storage bootstrap/cache
 
+# Étape finale : image légère de prod
 FROM php:8.3-fpm
 
 WORKDIR /var/www/html
 COPY --from=php-builder /var/www/html /var/www/html
 
 EXPOSE 8000
-CMD php artisan serve --host=0.0.0.0 --port=8000
+CMD php artisan serve --host=0.0.0.0 --port=${PORT:-8000}
